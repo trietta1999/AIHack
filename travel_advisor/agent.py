@@ -1,7 +1,7 @@
 """LangGraph ReAct agent wired to the four travel-advisor tools.
 
 Exposes:
-- `build_llm()`  — production AzureChatOpenAI factory.
+- `build_llm()`  — production ChatOpenAI factory.
 - `build_agent(llm, tools=...)` — wraps LLM + tools into a graph with a
   `MemorySaver` checkpointer so multi-turn threads remember context.
 - `run_turn(...)` — high-level helper: takes a question, returns the
@@ -16,7 +16,7 @@ import os
 import uuid
 
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
-from langchain_openai import AzureChatOpenAI
+from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.prebuilt import create_react_agent
 
@@ -85,21 +85,19 @@ class TurnResult:
 def build_llm(
     *,
     api_key: str | None = None,
-    deployment: str | None = None,
+    model: str | None = None,
     temperature: float | None = None,
     max_tokens: int = 1024,
-) -> AzureChatOpenAI:
-    """Construct the Azure-hosted chat model used by the agent."""
-    key = api_key or settings.api_key or os.getenv("AZURE_OPENAI_API_KEY")
+) -> ChatOpenAI:
+    """Construct the OpenAI chat model used by the agent."""
+    key = api_key or settings.api_key or os.getenv("OPENAI_API_KEY")
     if not key:
         raise RuntimeError(
-            "AZURE_OPENAI_API_KEY missing — copy .env.example to .env "
-            "and paste the key from the course staff."
+            "OPENAI_API_KEY missing — copy .env.example to .env "
+            "and paste your OpenAI API key."
         )
-    return AzureChatOpenAI(
-        azure_endpoint=settings.endpoint,
-        api_version=settings.api_version,
-        azure_deployment=deployment or settings.chat_deployment,
+    return ChatOpenAI(
+        model=model or settings.chat_model,
         api_key=key,
         temperature=settings.temperature if temperature is None else temperature,
         max_tokens=max_tokens,

@@ -155,10 +155,10 @@ def set_retriever(retriever: Retriever | None) -> None:
 
 
 def load_default_retriever() -> Retriever:
-    """Production helper: lazy-load FAISS from disk + AzureEmbedder."""
+    """Production helper: lazy-load FAISS from disk + OpenAIEmbedder."""
     from .config import settings as _settings
-    from .embeddings import AzureEmbedder
+    from .embeddings import OpenAIEmbedder
 
-    retr = Retriever.load(_settings.index_dir, AzureEmbedder())
+    retr = Retriever.load(_settings.index_dir, OpenAIEmbedder())
     set_retriever(retr)
     return retr

@@ -6,7 +6,7 @@ Run with:
 
 The app boots in three lazy stages so failures surface cleanly:
 
-1. Sidebar input collects the Azure OpenAI key (env var pre-fills it).
+1. Sidebar input collects the OpenAI key (env var pre-fills it).
 2. On first message, the FAISS index is loaded from disk and the
    LangGraph agent is constructed; both are cached in `st.session_state`.
 3. Each user turn is sent through `run_turn(...)` and rendered with a
@@ -58,12 +58,12 @@ def _reset_conversation() -> None:
 
 
 def _boot_agent(api_key: str) -> None:
-    """Idempotent boot: load FAISS retriever + Azure agent into session state."""
+    """Idempotent boot: load FAISS retriever + OpenAI agent into session state."""
     try:
         if not st.session_state.retriever_loaded:
-            from travel_advisor.embeddings import AzureEmbedder
+            from travel_advisor.embeddings import OpenAIEmbedder
 
-            embedder = AzureEmbedder(api_key=api_key)
+            embedder = OpenAIEmbedder(api_key=api_key)
             retriever = Retriever.load(settings.index_dir, embedder)
             set_retriever(retriever)
             st.session_state.retriever_loaded = True
@@ -84,12 +84,12 @@ with st.sidebar:
     st.title("🇻🇳 Vietnam Travel Planner")
     st.caption("RAG + LangGraph + FAISS demo")
 
-    api_key_default = os.getenv("AZURE_OPENAI_API_KEY", "")
+    api_key_default = os.getenv("OPENAI_API_KEY", "")
     api_key = st.text_input(
-        "Azure OpenAI API key",
+        "OpenAI API key",
         value=api_key_default,
         type="password",
-        help="Course-issued key. Stored only in this session.",
+        help="Your OpenAI API key. Stored only in this session.",
     )
 
     if st.button("Boot / Reload agent", disabled=not api_key):
@@ -98,7 +98,7 @@ with st.sidebar:
     st.divider()
     st.subheader("Status")
     if not api_key:
-        st.warning("Enter your Azure OpenAI key to start.")
+        st.warning("Enter your OpenAI key to start.")
     elif st.session_state.boot_error:
         st.error(f"Boot error: {st.session_state.boot_error}")
     elif st.session_state.agent is None:
@@ -153,7 +153,7 @@ prompt = pending or st.chat_input(
 
 if prompt:
     if not api_key:
-        st.error("Add your Azure OpenAI key in the sidebar first.")
+        st.error("Add your OpenAI key in the sidebar first.")
     else:
         if st.session_state.agent is None:
             _boot_agent(api_key)

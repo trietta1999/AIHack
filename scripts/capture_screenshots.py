@@ -1,6 +1,6 @@
 """Headless Playwright capture of the 5 required demo screenshots.
 
-Prereqs: a valid AZURE_OPENAI_API_KEY (the assistant must call the real
+Prereqs: a valid OPENAI_API_KEY (the assistant must call the real
 LLM for the responses to be meaningful) and `playwright` installed:
 
     pip install playwright
@@ -66,10 +66,10 @@ def _wait_for_streamlit(port: int, timeout: float = 30.0) -> None:
 
 
 def main() -> int:
-    api_key = os.environ.get("AZURE_OPENAI_API_KEY")
+    api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
         print(
-            "AZURE_OPENAI_API_KEY missing — the assistant cannot generate "
+            "OPENAI_API_KEY missing — the assistant cannot generate "
             "real responses without it. Aborting.",
             file=sys.stderr,
         )

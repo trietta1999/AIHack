@@ -3,17 +3,24 @@
     python scripts/build_index.py
 
 Run once after cloning, or any time you edit `data/knowledge_base/*.md`.
-Requires AZURE_OPENAI_API_KEY in env or .env file.
+Requires OPENAI_API_KEY in env or .env file.
 """
 
 from __future__ import annotations
 
 import logging
+import sys
 import time
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
+
 from travel_advisor.config import settings
-from travel_advisor.embeddings import AzureEmbedder
+from travel_advisor.embeddings import OpenAIEmbedder
 from travel_advisor.ingestion import chunks_from_dir
 from travel_advisor.retriever import build_retriever
 
@@ -34,7 +41,7 @@ def main(kb_dir: Path | None = None, index_dir: Path | None = None) -> None:
         raise RuntimeError(f"No chunks produced from {kb} — is the directory empty?")
     logger.info("Produced %d chunks", len(chunks))
 
-    embedder = AzureEmbedder()
+    embedder = OpenAIEmbedder()
     start = time.perf_counter()
     retriever = build_retriever(chunks, embedder=embedder)
     retriever.save(idx)
@@ -45,7 +52,7 @@ def main(kb_dir: Path | None = None, index_dir: Path | None = None) -> None:
         retriever.dim,
         len(retriever.chunks),
         elapsed,
-        embedder.deployment,
+        embedder.model,
     )
 
 

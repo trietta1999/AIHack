@@ -1,8 +1,7 @@
-"""Runtime configuration (Azure deployments, paths, tunables).
+"""Runtime configuration (OpenAI models, paths, tunables).
 
-Course-staff-issued endpoint and deployment names are baked in as defaults
-because they are not secrets. Override via environment variables when
-running against a different Azure tenant.
+Reads `OPENAI_API_KEY` from env. Override model names via env vars when
+you want to swap models without code changes.
 """
 
 from __future__ import annotations
@@ -16,12 +15,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 @dataclass(frozen=True)
 class Settings:
-    # Azure OpenAI
+    # OpenAI
     api_key: str | None
-    endpoint: str
-    api_version: str
-    chat_deployment: str
-    embedding_deployment: str
+    chat_model: str
+    embedding_model: str
 
     # Retrieval tunables
     chunk_max_chars: int
@@ -47,16 +44,9 @@ def _bool_env(name: str, default: bool) -> bool:
 
 def load_settings() -> Settings:
     return Settings(
-        api_key=os.getenv("AZURE_OPENAI_API_KEY"),
-        endpoint=os.getenv(
-            "AZURE_OPENAI_ENDPOINT",
-            "https://aiportalapi.stu-platform.live/jpe",
-        ),
-        api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-07-01-preview"),
-        chat_deployment=os.getenv("AZURE_OPENAI_CHAT_DEPLOYMENT", "gpt-4o-mini"),
-        embedding_deployment=os.getenv(
-            "AZURE_OPENAI_EMBEDDING_DEPLOYMENT", "text-embedding-3-small"
-        ),
+        api_key=os.getenv("OPENAI_API_KEY"),
+        chat_model=os.getenv("OPENAI_CHAT_MODEL", "gpt-4o-mini"),
+        embedding_model=os.getenv("OPENAI_EMBEDDING_MODEL", "text-embedding-3-small"),
         chunk_max_chars=int(os.getenv("CHUNK_MAX_CHARS", "1200")),
         top_k_default=int(os.getenv("TOP_K_DEFAULT", "4")),
         recursion_limit=int(os.getenv("AGENT_RECURSION_LIMIT", "12")),

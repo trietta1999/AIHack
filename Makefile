@@ -40,7 +40,7 @@ test: install
 
 demo: install seed
 	@if [ ! -f data/faiss_index/index.faiss ]; then \
-		echo ">>> FAISS index missing, building (needs AZURE_OPENAI_API_KEY)..."; \
+		echo ">>> FAISS index missing, building (needs OPENAI_API_KEY)..."; \
 		$(PY) scripts/build_index.py; \
 	fi
 	$(ST) run app.py
@@ -52,7 +52,7 @@ docker-build:
 
 docker-run:
 	docker run --rm -p 8501:8501 \
-		-e AZURE_OPENAI_API_KEY="$$AZURE_OPENAI_API_KEY" \
+		-e OPENAI_API_KEY="$$OPENAI_API_KEY" \
 		-e TAVILY_API_KEY="$$TAVILY_API_KEY" \
 		-v "$$(pwd)/data:/app/data" \
 		vn-travel-planner

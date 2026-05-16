@@ -2,7 +2,7 @@
 #
 # Build:   docker build -t vn-travel-planner .
 # Run:     docker run --rm -p 8501:8501 \
-#            -e AZURE_OPENAI_API_KEY=... \
+#            -e OPENAI_API_KEY=... \
 #            -v "$(pwd)/data:/app/data" \
 #            vn-travel-planner
 #
@@ -42,8 +42,8 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
 CMD ["/bin/sh", "-c", "\
   if [ ! -f data/bookings.sqlite ]; then python scripts/seed_db.py; fi && \
   if [ ! -f data/faiss_index/index.faiss ]; then \
-    if [ -z \"$AZURE_OPENAI_API_KEY\" ]; then \
-      echo 'AZURE_OPENAI_API_KEY missing — set it via -e to build the index'; exit 1; \
+    if [ -z \"$OPENAI_API_KEY\" ]; then \
+      echo 'OPENAI_API_KEY missing — set it via -e to build the index'; exit 1; \
     fi; \
     python scripts/build_index.py; \
   fi && \
