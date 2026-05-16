@@ -32,6 +32,7 @@ class Settings:
     knowledge_base_dir: Path
     index_dir: Path
     bookings_db_path: Path
+    chats_db_path: Path
     sample_queries_path: Path
 
 
@@ -54,6 +55,7 @@ def load_settings() -> Settings:
         knowledge_base_dir=BASE_DIR / "data" / "knowledge_base",
         index_dir=BASE_DIR / "data" / "faiss_index",
         bookings_db_path=BASE_DIR / "data" / "bookings.sqlite",
+        chats_db_path=BASE_DIR / "data" / "chats.sqlite",
         sample_queries_path=BASE_DIR / "sample_queries.json",
     )
 

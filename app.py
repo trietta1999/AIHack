@@ -11,7 +11,9 @@ The app boots in three lazy stages so failures surface cleanly:
 2. On boot, the FAISS index is loaded and the LangGraph agent is wired;
    both are cached in `st.session_state`.
 3. Each user turn is streamed token-by-token via `run_turn_stream`, with
-   tool calls rendered live inside an `st.status` panel.
+   tool calls rendered live inside an `st.status` panel. Messages
+   persist to `data/chats.sqlite`, and the active thread id rides in the
+   URL (`?t=<uuid>`) so reloads and shared links restore the same view.
 """
 
 from __future__ import annotations
@@ -27,6 +29,13 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from travel_advisor.agent import build_agent, build_llm, run_turn_stream
+from travel_advisor.chat_store import (
+    delete_thread as store_delete_thread,
+    init_store,
+    list_threads,
+    load_thread,
+    save_turn,
+)
 from travel_advisor.config import settings
 from travel_advisor.retriever import Retriever, set_retriever
 
@@ -47,22 +56,91 @@ st.markdown(
     <style>
       .block-container { padding-top: 2.5rem; padding-bottom: 5rem; }
       [data-testid="stChatMessage"] { padding: 0.4rem 0.6rem; }
+
       .vt-hero { text-align: left; margin-bottom: 0.5rem; }
       .vt-hero h1 { margin: 0 0 0.25rem 0; font-size: 1.85rem; }
       .vt-hero p  { margin: 0; color: rgba(120,120,120,0.95); font-size: 0.95rem; }
       .vt-tool-name { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+      /* Sidebar conversation list — quiet rows, subtle active-state. */
+      section[data-testid="stSidebar"] [data-testid="stHorizontalBlock"] { gap: 0.35rem; }
+      section[data-testid="stSidebar"] button {
+        border-radius: 8px;
+        font-weight: 400;
+      }
+      section[data-testid="stSidebar"] button[kind="secondary"] {
+        background: transparent;
+        border: 1px solid rgba(125,125,125,0.18);
+      }
+      section[data-testid="stSidebar"] button[kind="secondary"]:hover {
+        background: rgba(125,125,125,0.10);
+        border-color: rgba(125,125,125,0.30);
+      }
+      section[data-testid="stSidebar"] button[kind="primary"] {
+        background: rgba(99,102,241,0.14);
+        color: inherit;
+        border: 1px solid rgba(99,102,241,0.35);
+        font-weight: 500;
+      }
+      section[data-testid="stSidebar"] button[kind="primary"]:hover {
+        background: rgba(99,102,241,0.20);
+      }
+      /* Single-line titles for thread buttons; restored inside expanders
+         so sample-query questions can still wrap. */
+      section[data-testid="stSidebar"] button p {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        margin: 0;
+      }
+      section[data-testid="stSidebar"] [data-testid="stExpander"] button p {
+        white-space: normal;
+        overflow: visible;
+        text-overflow: clip;
+      }
+
+      .vt-section-label {
+        margin: 0.25rem 0 0.5rem 0;
+        font-size: 0.78rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: rgba(125,125,125,0.95);
+      }
     </style>
     """,
     unsafe_allow_html=True,
 )
 
 
+def _truncate(text: str, max_len: int) -> str:
+    """Trim long titles for the sidebar list."""
+    text = text.strip()
+    if len(text) <= max_len:
+        return text
+    return text[:max_len].rstrip() + "…"
+
+
+def _format_when(iso_ts: str) -> str:
+    """Compact display of an ISO timestamp: YYYY-MM-DD HH:MM."""
+    if not iso_ts:
+        return ""
+    return iso_ts.replace("T", " ").split("+")[0][:16]
+
+
 # ---------------------------------------------------------------------------
-# Session state
+# Persistence bootstrap
 # ---------------------------------------------------------------------------
 
-_DEFAULTS = {
-    "chat_history": [],
+init_store(settings.chats_db_path)
+
+
+# ---------------------------------------------------------------------------
+# Session state + thread resolution
+# ---------------------------------------------------------------------------
+
+_DEFAULTS: dict = {
+    "chat_history": None,
     "thread_id": None,
     "agent": None,
     "retriever_loaded": False,
@@ -72,13 +150,37 @@ _DEFAULTS = {
 for _k, _v in _DEFAULTS.items():
     if _k not in st.session_state:
         st.session_state[_k] = _v
+
+_qp_thread = st.query_params.get("t")
 if st.session_state.thread_id is None:
+    st.session_state.thread_id = _qp_thread or str(uuid.uuid4())
+    st.session_state.chat_history = None
+elif _qp_thread and _qp_thread != st.session_state.thread_id:
+    # URL changed (shared link, back/forward); follow it and reload history.
+    st.session_state.thread_id = _qp_thread
+    st.session_state.chat_history = None
+
+# Keep the URL in sync with the active thread.
+if st.query_params.get("t") != st.session_state.thread_id:
+    st.query_params["t"] = st.session_state.thread_id
+
+# Lazily hydrate history from disk on first load or after a thread switch.
+if st.session_state.chat_history is None:
+    st.session_state.chat_history = load_thread(
+        settings.chats_db_path, st.session_state.thread_id
+    )
+
+
+def _start_new_thread() -> None:
     st.session_state.thread_id = str(uuid.uuid4())
-
-
-def _reset_conversation() -> None:
     st.session_state.chat_history = []
-    st.session_state.thread_id = str(uuid.uuid4())
+    st.query_params["t"] = st.session_state.thread_id
+
+
+def _switch_thread(thread_id: str) -> None:
+    st.session_state.thread_id = thread_id
+    st.session_state.chat_history = None  # forces hydrate on next pass
+    st.query_params["t"] = thread_id
 
 
 def _boot_agent(api_key: str) -> None:
@@ -101,7 +203,6 @@ def _boot_agent(api_key: str) -> None:
 
 
 def _format_args(args: dict) -> str:
-    """Compact one-line summary of tool args for status display."""
     if not args:
         return ""
     return ", ".join(
@@ -110,7 +211,6 @@ def _format_args(args: dict) -> str:
 
 
 def _render_tool_trace(trace: list[dict]) -> None:
-    """Pretty-print the tool trace inside the current container."""
     if not trace:
         return
     label = f"🔧 {len(trace)} tool call" + ("s" if len(trace) > 1 else "")
@@ -143,7 +243,6 @@ with st.sidebar:
         help="Stored only in this browser session.",
     )
 
-    # Auto-boot once a key is supplied; surface errors inline.
     if api_key and st.session_state.agent is None and not st.session_state.boot_error:
         with st.spinner("Booting agent..."):
             _boot_agent(api_key)
@@ -164,14 +263,52 @@ with st.sidebar:
 
     st.divider()
 
-    st.markdown("**Conversation**")
-    if st.button("🔄 New conversation", use_container_width=True):
-        _reset_conversation()
+    st.markdown("<div class='vt-section-label'>Hội thoại</div>", unsafe_allow_html=True)
+    if st.button("＋ Hội thoại mới", use_container_width=True, type="secondary"):
+        _start_new_thread()
         st.rerun()
+
+    past = list_threads(settings.chats_db_path)
+    if past:
+        st.markdown(
+            f"<div class='vt-section-label' style='margin-top:1rem'>Đã lưu · {len(past)}</div>",
+            unsafe_allow_html=True,
+        )
+        for t in past:
+            is_current = t["thread_id"] == st.session_state.thread_id
+            cols = st.columns([5, 1], gap="small", vertical_alignment="center")
+            with cols[0]:
+                if st.button(
+                    _truncate(t["title"], 36),
+                    key=f"open-{t['thread_id']}",
+                    use_container_width=True,
+                    type="primary" if is_current else "secondary",
+                ):
+                    if not is_current:
+                        _switch_thread(t["thread_id"])
+                        st.rerun()
+            with cols[1]:
+                with st.popover("⋮", use_container_width=True):
+                    n = t["n_messages"]
+                    plural = "" if n == 1 else "s"
+                    st.caption(f"{n} message{plural}")
+                    st.caption(_format_when(t["updated_at"]))
+                    st.divider()
+                    if st.button(
+                        "Xoá hội thoại",
+                        key=f"del-{t['thread_id']}",
+                        use_container_width=True,
+                    ):
+                        store_delete_thread(settings.chats_db_path, t["thread_id"])
+                        if is_current:
+                            _start_new_thread()
+                        st.rerun()
+    else:
+        st.caption("Chưa có hội thoại nào được lưu.")
 
     st.divider()
 
-    st.markdown("**Sample queries**")
+    st.markdown("<div class='vt-section-label'>Câu hỏi mẫu</div>", unsafe_allow_html=True)
     samples_path = Path(__file__).parent / "sample_queries.json"
     if samples_path.exists():
         scenarios = json.loads(samples_path.read_text(encoding="utf-8"))["scenarios"]
@@ -208,7 +345,6 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# Empty-state hint only on a fresh conversation.
 if not st.session_state.chat_history and st.session_state.agent is not None:
     with st.container(border=True):
         st.markdown(
@@ -247,7 +383,13 @@ if prompt:
     if not agent_ready:
         st.error("Trợ lý chưa sẵn sàng — thêm OpenAI key ở thanh bên trước.")
     else:
-        # 1) Render the user message immediately.
+        # 1) Persist + render user message immediately so it survives a reload.
+        save_turn(
+            settings.chats_db_path,
+            thread_id=st.session_state.thread_id,
+            role="user",
+            content=prompt,
+        )
         st.session_state.chat_history.append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.markdown(prompt)
@@ -284,7 +426,6 @@ if prompt:
             except Exception as exc:
                 error_text = f"⚠️ Lỗi: `{exc}`"
 
-            # Settle the UI based on outcome.
             if error_text:
                 status.update(label="❌ Có lỗi xảy ra", state="error", expanded=True)
                 answer_box.error(error_text)
@@ -300,7 +441,16 @@ if prompt:
                 answer_box.markdown(final_answer)
                 _render_tool_trace(final_trace)
 
-        # 3) Persist the turn so it shows up on the next rerun.
+        # 3) Persist the assistant turn and append to session history.
+        save_turn(
+            settings.chats_db_path,
+            thread_id=st.session_state.thread_id,
+            role="assistant",
+            content=final_answer,
+            trace=final_trace,
+        )
         st.session_state.chat_history.append(
             {"role": "assistant", "content": final_answer, "trace": final_trace}
         )
+        # Rerun so the sidebar "Past conversations" list refreshes immediately.
+        st.rerun()
