@@ -78,7 +78,6 @@ These exercise the actual OpenAI GPT-4o-mini model on the 8 prompts in `sample_q
 ## How to re-run
 
 ```bash
-cd 03-Implementation/hackathon
 source .venv/bin/activate
 pytest tests/ -v
 ```

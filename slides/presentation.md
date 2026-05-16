@@ -106,7 +106,6 @@ System prompt enforces: cite every fact from RAG, never invent prices/policies, 
 Localhost only (per brief):
 
 ```bash
-cd 03-Implementation/hackathon
 python3.12 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env  # paste OPENAI_API_KEY
@@ -156,5 +155,5 @@ Each turn: open the **🔧 N tool call(s)** expander to show the raw observation
 
 # Thanks
 
-Source: `03-Implementation/hackathon/` on branch `Group2`.
+Source: hackathon GitLab repo, branch `Group2`.
 Docs: [01-user-stories](../docs/01-user-stories.md) · [02-mvp-features](../docs/02-mvp-features.md) · [03-architecture](../docs/03-architecture.md) · [04-test-plan](../docs/04-test-plan.md) · [05-deployment](../docs/05-deployment.md)

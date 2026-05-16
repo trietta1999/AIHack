@@ -20,7 +20,7 @@ A bilingual (Vietnamese / English) travel-planning chatbot for Vietnam. Built on
 ## Project layout
 
 ```text
-03-Implementation/hackathon/
+hackathon/                             # project root (this directory)
 ├── README.md                          # This file
 ├── Makefile                           # make install/seed/index/test/demo/docker/...
 ├── Dockerfile                         # Single-stage Python 3.12 image
@@ -83,7 +83,6 @@ Three equivalent paths — pick whichever you prefer.
 ### Option A — Makefile (recommended)
 
 ```bash
-cd 03-Implementation/hackathon
 cp .env.example .env                   # paste OPENAI_API_KEY=...
 make demo                              # install + seed + index (if needed) + run Streamlit
 ```
@@ -93,7 +92,6 @@ Other one-command targets: `make test`, `make smoke`, `make docker`, `make slide
 ### Option B — Plain Python
 
 ```bash
-cd 03-Implementation/hackathon
 python3.12 -m venv .venv && source .venv/bin/activate    # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 cp .env.example .env                                     # paste OPENAI_API_KEY=...
@@ -105,7 +103,6 @@ streamlit run app.py                                     # http://localhost:8501
 ### Option C — Docker
 
 ```bash
-cd 03-Implementation/hackathon
 export OPENAI_API_KEY=...
 docker compose up --build                                # http://localhost:8501
 ```

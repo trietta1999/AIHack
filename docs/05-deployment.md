@@ -21,7 +21,6 @@
 ### Path A — Makefile (recommended)
 
 ```bash
-cd 03-Implementation/hackathon
 cp .env.example .env                    # paste OPENAI_API_KEY=...
 make demo
 ```
@@ -40,8 +39,6 @@ Other useful targets:
 ### Path B — Plain Python (manual)
 
 ```bash
-cd 03-Implementation/hackathon
-
 # 1. Virtual env
 python3.12 -m venv .venv
 source .venv/bin/activate              # Windows: .venv\Scripts\activate
@@ -68,7 +65,6 @@ Open <http://localhost:8501>. Paste the same OpenAI key into the sidebar — the
 ### Path C — Docker / docker-compose
 
 ```bash
-cd 03-Implementation/hackathon
 export OPENAI_API_KEY=...              # required for the index build inside the container
 # Optional: export TAVILY_API_KEY=tvly-...
 
