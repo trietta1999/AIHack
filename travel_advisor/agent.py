@@ -15,7 +15,7 @@ from typing import Any, Iterator
 import os
 import uuid
 
-from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage, ToolMessage
 from langchain_openai import ChatOpenAI
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.prebuilt import create_react_agent
@@ -221,9 +221,10 @@ def run_turn_stream(
 ) -> Iterator[StreamEvent]:
     """Stream events from the agent as it works.
 
-    Yields tool-call and tool-result events live, then the assistant's
-    answer text in incremental chunks, then a single `final` event with
-    the full `TurnResult`. UI layers can render each event as it arrives.
+    Token-level streaming via LangGraph's multi-mode stream:
+      - `messages` mode yields `(AIMessageChunk, metadata)` per LLM token.
+      - `updates`  mode yields `{node: {messages: [...]}}` when a node
+        finishes — that's where we extract tool calls and tool results.
 
     Falls back to one-shot mode if the agent does not expose `.stream()`
     (e.g. the fake LLM used in tests).
@@ -245,71 +246,94 @@ def run_turn_stream(
         return
 
     seen_tool_call_ids: set[str] = set()
-    seen_tool_message_ids: set[str] = set()
+    seen_tool_result_ids: set[str] = set()
     pending: dict[str, dict[str, Any]] = {}
     trace: list[ToolTrace] = []
-    answer_text = ""
-    emitted_text = ""
+    answer_parts: list[str] = []
+    fallback_answer = ""  # used when the LLM does not support .stream()
 
-    for step in stream_fn(
+    stream = stream_fn(
         {"messages": [HumanMessage(content=question)]},
         config=_config(tid),
-        stream_mode="values",
-    ):
-        messages = step.get("messages", []) if isinstance(step, dict) else []
-        for msg in messages:
-            if isinstance(msg, AIMessage):
-                for call in getattr(msg, "tool_calls", None) or []:
-                    call_id = (
-                        call.get("id") if isinstance(call, dict) else getattr(call, "id", None)
-                    )
-                    if not call_id or call_id in seen_tool_call_ids:
-                        continue
-                    seen_tool_call_ids.add(call_id)
-                    name = (
-                        call.get("name") if isinstance(call, dict)
-                        else getattr(call, "name", "?")
-                    )
-                    args = (
-                        call.get("args") if isinstance(call, dict)
-                        else getattr(call, "args", {})
-                    ) or {}
-                    pending[call_id] = {"name": name, "args": args}
-                    yield StreamEvent(
-                        kind="tool_call",
-                        data={"name": name, "args": args},
-                    )
-                text = _extract_text(msg)
-                if text:
-                    answer_text = text
-            elif isinstance(msg, ToolMessage):
-                msg_id = getattr(msg, "id", None) or getattr(msg, "tool_call_id", None)
-                if msg_id and msg_id in seen_tool_message_ids:
-                    continue
-                if msg_id:
-                    seen_tool_message_ids.add(msg_id)
-                call_id = getattr(msg, "tool_call_id", None)
-                content = str(getattr(msg, "content", ""))
-                spec = pending.pop(call_id, None) if call_id else None
-                name = spec["name"] if spec else "?"
-                args = spec["args"] if spec else {}
-                trace.append(ToolTrace(name=name, args=args, observation=content))
-                yield StreamEvent(
-                    kind="tool_result",
-                    data={"name": name, "observation": content},
-                )
+        stream_mode=["updates", "messages"],
+    )
 
-        # Emit any new tail of the answer as a chunk.
-        if answer_text and answer_text != emitted_text:
-            if answer_text.startswith(emitted_text):
-                delta = answer_text[len(emitted_text):]
-            else:
-                delta = answer_text  # text was rewritten; resend in full
-            if delta:
-                yield StreamEvent(kind="answer_chunk", data=delta)
-            emitted_text = answer_text
+    for mode, payload in stream:
+        if mode == "messages":
+            chunk = payload[0] if isinstance(payload, tuple) else payload
+            # Only stream tokens from the final LLM answer (AIMessageChunk
+            # with non-empty text content). Tool-call chunks have empty
+            # content but populated `tool_call_chunks`; skip them — the
+            # `updates` branch reports the consolidated tool call.
+            if isinstance(chunk, AIMessageChunk):
+                text = _extract_text(chunk)
+                if text:
+                    answer_parts.append(text)
+                    yield StreamEvent(kind="answer_chunk", data=text)
+        elif mode == "updates":
+            if not isinstance(payload, dict):
+                continue
+            for node_output in payload.values():
+                if not isinstance(node_output, dict):
+                    continue
+                messages = node_output.get("messages", [])
+                if not isinstance(messages, list):
+                    messages = [messages]
+                for msg in messages:
+                    if isinstance(msg, AIMessage):
+                        for call in getattr(msg, "tool_calls", None) or []:
+                            call_id = (
+                                call.get("id") if isinstance(call, dict)
+                                else getattr(call, "id", None)
+                            )
+                            if not call_id or call_id in seen_tool_call_ids:
+                                continue
+                            seen_tool_call_ids.add(call_id)
+                            name = (
+                                call.get("name") if isinstance(call, dict)
+                                else getattr(call, "name", "?")
+                            )
+                            args = (
+                                call.get("args") if isinstance(call, dict)
+                                else getattr(call, "args", {})
+                            ) or {}
+                            pending[call_id] = {"name": name, "args": args}
+                            yield StreamEvent(
+                                kind="tool_call",
+                                data={"name": name, "args": args},
+                            )
+                        # If the message has no tool_calls, treat its
+                        # content as the final answer. Captured here so
+                        # non-streaming LLMs (test fakes) still produce
+                        # an answer_chunk event below.
+                        if not getattr(msg, "tool_calls", None):
+                            text = _extract_text(msg)
+                            if text:
+                                fallback_answer = text
+                    elif isinstance(msg, ToolMessage):
+                        call_id = getattr(msg, "tool_call_id", None)
+                        if call_id and call_id in seen_tool_result_ids:
+                            continue
+                        if call_id:
+                            seen_tool_result_ids.add(call_id)
+                        content = str(getattr(msg, "content", ""))
+                        spec = pending.pop(call_id, None) if call_id else None
+                        name = spec["name"] if spec else "?"
+                        args = spec["args"] if spec else {}
+                        trace.append(ToolTrace(name=name, args=args, observation=content))
+                        yield StreamEvent(
+                            kind="tool_result",
+                            data={"name": name, "observation": content},
+                        )
+
+    # Fallback: if token streaming produced nothing (e.g. test fakes that
+    # only implement `_generate`), surface the final AIMessage's content
+    # as a single answer_chunk so downstream UIs still see an answer.
+    if not answer_parts and fallback_answer:
+        answer_parts.append(fallback_answer)
+        yield StreamEvent(kind="answer_chunk", data=fallback_answer)
 
     yield StreamEvent(
         kind="final",
-        data=TurnResult(answer=answer_text, trace=trace, thread_id=tid),
+        data=TurnResult(answer="".join(answer_parts), trace=trace, thread_id=tid),
     )
