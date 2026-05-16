@@ -4,8 +4,8 @@ __pycache__/
 .env
 .DS_Store
 
-# Build artifacts (regenerable via scripts/)
-data/faiss_index/
-data/bookings.sqlite
+# Build artifacts — FAISS index + bookings DB are COMMITTED so Streamlit Cloud
+# can cold-start without an OPENAI_API_KEY-dependent build step. Rebuild locally
+# with `make seed index` after editing data/knowledge_base/ or scripts/seed_db.py.
 data/chats.sqlite
 .pytest_cache/

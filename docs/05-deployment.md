@@ -111,16 +111,47 @@ Verifies imports + DB seed + all tests + Streamlit syntax in ~20 seconds.
 
 | Option | Recommendation | Notes |
 | --- | --- | --- |
-| **Streamlit Community Cloud** | Easiest. | Free tier; commit FAISS index + SQLite to the repo and configure secrets in the dashboard. |
+| **Streamlit Community Cloud** | Easiest. | Free tier; repo already ships the prebuilt FAISS index + bookings DB. Set the OpenAI key in **Settings → Secrets** (see step-by-step below). |
 | **Hugging Face Spaces (Streamlit SDK)** | Easy. | Same approach as Streamlit Cloud; supports private spaces. |
 | **Render / Fly.io / Railway** | Production-ish. | Run the Docker image from this repo; set the OpenAI key as a secret env var. |
 | **Docker** | Most portable. | A 4-line Dockerfile (`python:3.12-slim` → `pip install -r requirements.txt` → `streamlit run app.py`) is enough. Mount `data/` as a volume if you want the index/DB to persist across container restarts. |
 
-A working [Dockerfile](../Dockerfile) and [docker-compose.yml](../docker-compose.yml) are shipped with the project (see Path C above). For cloud rollouts:
+A working [Dockerfile](../Dockerfile) and [docker-compose.yml](../docker-compose.yml) are shipped with the project (see Path C above).
 
-- **Streamlit Community Cloud / HF Spaces** — point the platform at `app.py`; add `OPENAI_API_KEY` (and optionally `TAVILY_API_KEY`) as platform secrets. Commit the FAISS index + SQLite for fastest cold-start, or build them in a post-deploy hook.
-- **Container hosts (Render / Fly.io / Railway / etc.)** — `docker push` the image to the registry of your choice, point the service at it, set the same env vars.
-- **Persistent volume**: the container expects `/app/data` to be writable. On Streamlit Cloud you'll need to either commit the prebuilt index or run `scripts/build_index.py` at startup (the entrypoint already handles this).
+### Streamlit Community Cloud — step by step
+
+> The repo is already prepared for this path: `data/faiss_index/` and `data/bookings.sqlite` are **committed**, so Streamlit Cloud never has to run `scripts/build_index.py` (which would need an `OPENAI_API_KEY` at build time). The app reads the runtime key from **Streamlit Secrets**, not `.env`. **Never commit `.env`** — `.gitignore` already blocks it.
+
+1. Push the repo to GitHub. Verify `.env` is *not* in any commit: `git log --all --full-history -- .env` should be empty. If GitHub's secret scanner has blocked a push, see the recovery steps below.
+2. On <https://share.streamlit.io> → **New app** → repo + branch + main file path `03-Implementation/hackathon/app.py`.
+3. Open **Settings → Secrets** and paste TOML:
+
+   ```toml
+   OPENAI_API_KEY = "sk-..."
+   # Optional — enables the live web_search_news tool.
+   TAVILY_API_KEY = "tvly-..."
+   ```
+
+4. Click **Deploy**. The app boots, the shim near the top of `app.py` promotes every `st.secrets` entry to `os.environ` (only when the env var is unset), the sidebar pre-fills the OpenAI key, and FAISS loads from the committed index.
+
+**Rebuilding the index**: edit `data/knowledge_base/*.md` locally → `make index` → commit the regenerated `data/faiss_index/` → push. Streamlit Cloud auto-redeploys.
+
+**Recovering from a blocked push** (member tried to commit `.env`):
+
+```bash
+git rm --cached .env                       # untrack but keep local file
+git commit --amend --no-edit               # rewrite the offending commit
+# If .env reached an earlier commit, use `git rebase -i <sha>` to drop or fix it.
+git push --force-with-lease                # only after verifying the key is gone
+```
+
+Then **rotate the leaked OpenAI key** at <https://platform.openai.com/api-keys> — secret scanning means the key was seen in transit, treat it as compromised.
+
+### Other hosts
+
+- **Hugging Face Spaces (Streamlit SDK)** — same recipe as Streamlit Cloud; set secrets via the Space settings.
+- **Container hosts (Render / Fly.io / Railway / etc.)** — `docker push` the image, point the service at it, set `OPENAI_API_KEY` (and optionally `TAVILY_API_KEY`) as platform env vars. The Docker entrypoint will seed the DB and build the FAISS index on first boot if either is missing.
+- **Persistent volume**: the container expects `/app/data` to be writable. Mount a volume if you want chats/bookings to survive container restarts.
 
 ---
 

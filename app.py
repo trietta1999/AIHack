@@ -28,6 +28,14 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Streamlit Cloud: promote st.secrets to env so dotenv-based code keeps working.
+# Local dev: secrets.toml is absent → silently skip; .env from load_dotenv() wins.
+try:
+    for _k, _v in st.secrets.items():
+        os.environ.setdefault(_k, str(_v))
+except Exception:
+    pass
+
 from travel_advisor.agent import build_agent, build_llm, run_turn_stream
 from travel_advisor.chat_store import (
     delete_thread as store_delete_thread,
