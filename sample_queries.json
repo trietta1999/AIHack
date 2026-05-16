@@ -1,0 +1,52 @@
+{
+  "scenarios": [
+    {
+      "id": "S01",
+      "category": "RAG — destinations",
+      "question": "Mình có 3 ngày ở Hà Nội thì nên đi đâu, ăn gì?",
+      "expected_tools": ["search_travel_knowledge"]
+    },
+    {
+      "id": "S02",
+      "category": "RAG — visa",
+      "question": "I'm Australian, do I need a visa for a 2-week trip to Vietnam in March 2026?",
+      "expected_tools": ["search_travel_knowledge"]
+    },
+    {
+      "id": "S03",
+      "category": "SQL — flights",
+      "question": "Find me the cheapest economy flight from Hanoi to Phu Quoc.",
+      "expected_tools": ["query_tour_inventory"]
+    },
+    {
+      "id": "S04",
+      "category": "SQL — hotels",
+      "question": "Tìm khách sạn 4 sao có ăn sáng ở Đà Nẵng dưới 2 triệu/đêm.",
+      "expected_tools": ["query_tour_inventory"]
+    },
+    {
+      "id": "S05",
+      "category": "Calculator — budget",
+      "question": "Two of us are doing 6 nights in Hanoi at 1,500,000 VND/night, plus a 5,200,000 VND Halong cruise per person and a return Hanoi-Danang flight at 650,000 VND each way per person. What's the rough trip budget?",
+      "expected_tools": ["estimate_trip_budget"]
+    },
+    {
+      "id": "S06",
+      "category": "Multi-tool",
+      "question": "Plan a 7-day Vietnam itinerary for 2 people, budget USD 1,500 total. Show me a sample plan and the budget calculation.",
+      "expected_tools": ["search_travel_knowledge", "estimate_trip_budget"]
+    },
+    {
+      "id": "S07",
+      "category": "Web search (offline-friendly)",
+      "question": "Are there any current weather advisories for Halong Bay this week?",
+      "expected_tools": ["web_search_news"]
+    },
+    {
+      "id": "S08",
+      "category": "Out-of-domain guardrail",
+      "question": "What's the stock price of Apple today?",
+      "expected_tools": []
+    }
+  ]
+}

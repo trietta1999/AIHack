@@ -1,0 +1,19 @@
+.venv/
+__pycache__/
+**/__pycache__/
+*.pyc
+.pytest_cache/
+.git/
+.gitignore
+.DS_Store
+
+# Build artifacts — regenerated inside the container.
+data/faiss_index/
+data/bookings.sqlite
+
+# Secrets — pass via -e AZURE_OPENAI_API_KEY=... at run time.
+.env
+
+# Docs we don't need inside the image.
+docs/
+slides/

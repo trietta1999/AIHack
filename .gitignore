@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+.DS_Store
+
+# Build artifacts (regenerable via scripts/)
+data/faiss_index/
+data/bookings.sqlite
+.pytest_cache/
