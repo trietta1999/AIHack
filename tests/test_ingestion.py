@@ -61,7 +61,7 @@ def test_chunks_from_dir_produces_expected_documents():
     from travel_advisor.config import settings
 
     chunks = chunks_from_dir(settings.knowledge_base_dir, max_chars=1200)
-    assert len(chunks) > 20  # 6 KB files, multiple docs each
+    assert len(chunks) > 20  # 7 KB files, multiple docs each
     titles = {c.title for c in chunks}
     assert any("Hanoi" in t for t in titles)
     assert any("Phu Quoc" in t for t in titles)

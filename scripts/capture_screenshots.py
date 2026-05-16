@@ -111,13 +111,15 @@ def main() -> int:
             page.goto(f"http://127.0.0.1:{port}", wait_until="networkidle")
             page.wait_for_timeout(1500)
 
-            # Sidebar: paste API key + click Boot.
-            key_input = page.get_by_label("Azure OpenAI API key")
+            # Sidebar: paste the API key — the agent auto-boots, no button needed.
+            key_input = page.get_by_label("OpenAI API key")
             key_input.fill(api_key)
-            page.get_by_role("button", name="Boot / Reload agent").click()
-            # Wait for green "Agent ready." badge.
-            page.get_by_text("Agent ready.").wait_for(timeout=60_000)
+            # Wait for green "✓ Agent ready" badge.
+            page.get_by_text("Agent ready").wait_for(timeout=60_000)
             page.wait_for_timeout(500)
+
+            # In-app the expander label is "🔧 N tool call" / "🔧 N tool calls".
+            tool_expander_selector = ":text-matches('tool call', 'i')"
 
             for filename, prompt, extra in SCENARIOS:
                 if prompt:
@@ -126,11 +128,11 @@ def main() -> int:
                     )
                     chat_input.fill(prompt)
                     chat_input.press("Enter")
-                    # Wait for the next assistant turn to finish: the Tool
-                    # calls expander appears (or 60s timeout for the no-tool
+                    # Wait for the next assistant turn to finish: the tool
+                    # call expander appears (or 60s timeout for the no-tool
                     # case S08).
                     try:
-                        page.locator(":text-matches('Tool calls', 'i')").last.wait_for(
+                        page.locator(tool_expander_selector).last.wait_for(
                             timeout=90_000
                         )
                     except Exception:
@@ -138,8 +140,8 @@ def main() -> int:
                     page.wait_for_timeout(2500)
 
                 if extra == "expand_last_trace":
-                    # Click the most recent "Tool calls" expander.
-                    expanders = page.locator(":text-matches('Tool calls', 'i')")
+                    # Click the most recent tool-call expander.
+                    expanders = page.locator(tool_expander_selector)
                     if expanders.count() > 0:
                         expanders.last.click()
                         page.wait_for_timeout(800)

@@ -1,7 +1,7 @@
 # Hackathon: Vietnam Travel Planner — RAG + LangGraph + Streamlit
 # Python 3.10-3.12 (LangGraph + Pydantic 2 not yet fully on 3.14).
 
-# Core LLM stack (Azure OpenAI via course proxy)
+# Core LLM stack (OpenAI: gpt-4o-mini + text-embedding-3-small)
 openai>=1.30,<2.0
 python-dotenv>=1.0,<2.0
 tenacity>=8.2,<10.0

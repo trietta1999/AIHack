@@ -2,13 +2,13 @@
 
 ## Strategy
 
-The test suite is split into three layers, all runnable offline (no Azure key required):
+The test suite is split into three layers, all runnable offline (no OpenAI key required):
 
 | Layer | What it verifies | Substitutes used |
 | --- | --- | --- |
 | **Unit** | Markdown ingestion, paragraph chunking, FAISS retriever round-trip, each of the 4 tools in isolation. | Real FAISS, deterministic `HashingEmbedder`, real seeded SQLite. |
-| **Integration (agent loop)** | LangGraph wires LLM ↔ tools correctly: routing, multi-tool sequences, observation propagation, final answer extraction. | `FakeToolCallingChatModel` scripts deterministic tool calls. |
-| **Manual / live (Streamlit)** | Real Azure LLM produces well-grounded, cited answers for the 8 scenarios in `sample_queries.json`. | None — run after `streamlit run app.py`. |
+| **Integration (agent loop)** | LangGraph wires LLM ↔ tools correctly: routing, multi-tool sequences, observation propagation, streaming events, final answer extraction. | `FakeToolCallingChatModel` scripts deterministic tool calls. |
+| **Manual / live (Streamlit)** | Real OpenAI GPT-4o-mini produces well-grounded, cited answers for the 8 scenarios in `sample_queries.json`. | None — run after `streamlit run app.py`. |
 
 Hashing embedder is fine for unit tests because the test queries deliberately contain rare overlap words from the target chunks (e.g. "halong cruise overnight kayak" → unique to the Halong document).
 
@@ -50,7 +50,7 @@ All 29 tests run with `pytest tests/` in under 1 second. See `tests/` for source
 
 ## Manual / live test scenarios
 
-These exercise the actual Azure GPT-4o-mini model on the 8 prompts in `sample_queries.json`. Run after `streamlit run app.py`.
+These exercise the actual OpenAI GPT-4o-mini model on the 8 prompts in `sample_queries.json`. Run after `streamlit run app.py`.
 
 | Scenario | Question | Expected tool(s) | Acceptance |
 | --- | --- | --- | --- |
@@ -68,7 +68,7 @@ These exercise the actual Azure GPT-4o-mini model on the 8 prompts in `sample_qu
 | Risk | Mitigation in code | Verified by |
 | --- | --- | --- |
 | Empty / whitespace user query | `run_turn` short-circuits before LLM call | TC_AGT_04 |
-| LLM stuck in tool-call loop | `recursion_limit=12` cap on the LangGraph executor | Code review (settings.py + agent.py) |
+| LLM stuck in tool-call loop | `recursion_limit=12` cap on the LangGraph executor | Code review (config.py + agent.py) |
 | FAISS index not built | `Retriever.load` raises `FileNotFoundError` with build-script hint | TC_RET_05 |
 | SQLite DB missing | Tool raises with seed-script hint | Code review (tools.py:_db_connect) |
 | SQL injection via filter values | Whitelist of tables + parameterised queries with `?` placeholders | Code review (tools.py:query_tour_inventory) |
@@ -100,4 +100,4 @@ This re-verifies:
 3. All 29 pytest cases pass.
 4. `app.py` parses without syntax errors.
 
-Runs in ~20 seconds, no Azure key required.
+Runs in ~20 seconds, no OpenAI key required.

@@ -23,7 +23,7 @@ Group 2 — AIA_05
 ## Why "Vietnam Travel Planner"?
 
 - **High-value domain**: visitors need destinations, transport, visa, budget, and live availability in one conversation.
-- **Rich, finite knowledge surface**: fits into a curated KB of ~30 chunks (6 markdown files) without dragging in millions of irrelevant docs.
+- **Rich, finite knowledge surface**: fits into a curated KB of 31 chunks (7 markdown files) without dragging in millions of irrelevant docs.
 - **Exercises every category in the brief**: RAG, SQL-style lookup, calculation, optional web search — all in one demo.
 - **Bilingual VN/EN**: showcases the assistant's ability to track the user's language across multi-turn chats.
 
@@ -43,26 +43,26 @@ Group 2 — AIA_05
 
 ## Tech stack
 
-- **LLM**: Azure OpenAI `gpt-4o-mini` (chat) + `text-embedding-3-small` (RAG embeddings).
-- **Agent**: LangGraph `create_react_agent` with `MemorySaver` checkpointer (multi-turn per `thread_id`).
+- **LLM**: OpenAI `gpt-4o-mini` (chat) + `text-embedding-3-small` (RAG embeddings).
+- **Agent**: LangGraph `create_react_agent` with `MemorySaver` checkpointer (multi-turn per `thread_id`), token-level streaming via `run_turn_stream`.
 - **Vector store**: **FAISS** (`IndexFlatIP`, L2-normalised → cosine).
-- **Knowledge base**: 6 markdown files (destinations, transport, visa, food, safety, accommodation, itineraries) with YAML front-matter — 26 documents → 31 chunks.
+- **Knowledge base**: 7 markdown files (destinations, transport, visa, food, safety, accommodation, itineraries) with YAML front-matter — 26 documents → 31 chunks.
 - **Booking inventory**: SQLite seeded with 12 tours, 17 hotels, 13 flights.
-- **Frontend**: Streamlit — chat UI + sidebar (key, sample queries) + tool-trace expanders.
-- **Testing**: pytest with `HashingEmbedder` + `FakeToolCallingChatModel` (27 tests, run in < 1s, no API key needed).
+- **Frontend**: Streamlit — chat UI + sidebar (key, sample queries, past threads) + tool-trace expanders, with **persistent multi-thread history** (`data/chats.sqlite`, URL-shareable via `?t=<uuid>`).
+- **Testing**: pytest with `HashingEmbedder` + `FakeToolCallingChatModel` (29 tests, run in < 1s, no API key needed).
 
 ---
 
 ## RAG pipeline
 
-```
-data/knowledge_base/*.md
+```text
+data/knowledge_base/*.md  (7 files)
         |
         v
 ingestion.chunks_from_dir (max 1200 chars/chunk)
         |
         v
-Azure embeddings text-embedding-3-small (batched, retry)
+OpenAI embeddings text-embedding-3-small (batched, retry)
         |
         v
 L2-normalise → FAISS IndexFlatIP → data/faiss_index/
@@ -96,7 +96,7 @@ System prompt enforces: cite every fact from RAG, never invent prices/policies, 
   - 10 tool tests (every tool, including SQL whitelist enforcement and offline web-search behaviour).
   - 7 agent tests (routing, multi-tool sequences, observation propagation, **streaming events**).
 - **8 manual scenarios** in `sample_queries.json`, including a Vietnamese-only flow, an out-of-domain guardrail, and a budget-calc combo.
-- Mocks: `HashingEmbedder` (deterministic MD5-of-tokens) + `FakeToolCallingChatModel` (scripted AIMessages) drive the full pipeline without an Azure key.
+- Mocks: `HashingEmbedder` (deterministic MD5-of-tokens) + `FakeToolCallingChatModel` (scripted AIMessages) drive the full pipeline without an OpenAI key.
 - Smoke test (`make smoke`) verifies imports + DB seed + tests + Streamlit syntax in ~20s.
 
 ---
@@ -109,13 +109,13 @@ Localhost only (per brief):
 cd 03-Implementation/hackathon
 python3.12 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-cp .env.example .env  # paste AZURE_OPENAI_API_KEY
+cp .env.example .env  # paste OPENAI_API_KEY
 python scripts/build_index.py      # build FAISS from KB
 python scripts/seed_db.py          # seed bookings.sqlite
 streamlit run app.py
 ```
 
-Cloud-ready: same package runs on Streamlit Community Cloud, HF Spaces, Azure App Service, or in a 4-line Dockerfile (see [docs/05-deployment.md](../docs/05-deployment.md)).
+Cloud-ready: same package runs on Streamlit Community Cloud, HF Spaces, or any container host via the shipped Docker image (see [docs/05-deployment.md](../docs/05-deployment.md)).
 
 ---
 
@@ -127,7 +127,7 @@ Cloud-ready: same package runs on Streamlit Community Cloud, HF Spaces, Azure Ap
 4. **S06** — EN: "Plan a 7-day Vietnam itinerary, USD 1,500 budget" → RAG + calculator chained.
 5. **S08** — Out-of-domain ("Apple stock price?") → polite redirect.
 
-Each turn: open the **Tool calls** expander to show the raw observation.
+Each turn: open the **🔧 N tool call(s)** expander to show the raw observation.
 
 ---
 
@@ -135,11 +135,11 @@ Each turn: open the **Tool calls** expander to show the raw observation.
 
 | Criterion | Points | Self-assessment |
 | --- | --- | --- |
-| Innovation & Use Case | 20 | Original domain (Vietnam travel), bilingual, multi-tool agent. |
+| Innovation & Use Case | 20 | Original domain (Vietnam travel), bilingual, multi-tool agent, streaming responses, persistent multi-thread chat history. |
 | RAG Pipeline | 25 | YAML-frontmatter KB, paragraph chunking, FAISS IndexFlatIP, L2-normalised cosine, persistent index, citations enforced. |
-| User Interface Quality | 15 | Streamlit chat + sidebar sample queries + tool-trace expander + new-conversation reset. |
+| User Interface Quality | 15 | Streamlit chat + sidebar sample queries + tool-trace expander + persistent thread list + URL-shareable thread ids. |
 | LLM Response Relevance | 15 | System-prompt rules: cite, don't fabricate, stay in user's language; budget tool prevents arithmetic errors. |
-| Testing & Robustness | 10 | 27 offline tests; explicit guard rails for missing index, missing DB, empty query, unknown SQL table, missing Tavily key. |
+| Testing & Robustness | 10 | 29 offline tests; explicit guard rails for missing index, missing DB, empty query, unknown SQL table, missing Tavily key. |
 | Deployment & Demo | 15 | One-command Streamlit run; clear demo script in `docs/05-deployment.md`. |
 
 ---

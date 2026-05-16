@@ -14,7 +14,7 @@
 
 - **Python 3.10 / 3.11 / 3.12** (NOT 3.13 / 3.14 — LangGraph 0.3 + Pydantic 2 still catching up).
 - ~300 MB disk space for the virtual environment.
-- An Azure OpenAI API key issued by the course staff with access to both `gpt-4o-mini` (chat) and `text-embedding-3-small` (embedding) deployments.
+- An **OpenAI API key** with access to both `gpt-4o-mini` (chat) and `text-embedding-3-small` (embedding) models.
 - (Optional) A [Tavily](https://tavily.com) API key to enable the live `web_search_news` tool. The demo runs fine without it.
 - (Optional, for Docker path) Docker 24+ and Docker Compose v2.
 
@@ -22,7 +22,7 @@
 
 ```bash
 cd 03-Implementation/hackathon
-cp .env.example .env                    # paste AZURE_OPENAI_API_KEY=...
+cp .env.example .env                    # paste OPENAI_API_KEY=...
 make demo
 ```
 
@@ -49,7 +49,7 @@ pip install -r requirements.txt
 
 # 2. Credentials
 cp .env.example .env
-$EDITOR .env                            # paste AZURE_OPENAI_API_KEY=...
+$EDITOR .env                            # paste OPENAI_API_KEY=...
 
 # 3. Build the FAISS index from the markdown KB
 python scripts/build_index.py
@@ -63,13 +63,13 @@ python scripts/seed_db.py
 streamlit run app.py
 ```
 
-Open <http://localhost:8501>. Paste the same Azure key into the sidebar, click **Boot / Reload agent**, then use the **Sample queries** buttons in the sidebar or type a question. Responses **stream live**, with a status badge while tools execute.
+Open <http://localhost:8501>. Paste the same OpenAI key into the sidebar — the agent **auto-boots** and shows a green **✓ Agent ready** badge. Then use the **Câu hỏi mẫu** (sample query) buttons in the sidebar or type a question. Responses **stream live**, with a status badge while tools execute, and every conversation is auto-saved (use the sidebar list to switch between past threads or start a new one).
 
 ### Path C — Docker / docker-compose
 
 ```bash
 cd 03-Implementation/hackathon
-export AZURE_OPENAI_API_KEY=...        # required for the index build inside the container
+export OPENAI_API_KEY=...              # required for the index build inside the container
 # Optional: export TAVILY_API_KEY=tvly-...
 
 docker compose up --build              # one command — http://localhost:8501
@@ -78,17 +78,17 @@ docker compose up --build              # one command — http://localhost:8501
 The container:
 
 1. Seeds `data/bookings.sqlite` on first boot if missing.
-2. Builds `data/faiss_index/` from the KB on first boot if missing (uses your Azure key).
+2. Builds `data/faiss_index/` from the KB on first boot if missing (uses your OpenAI key).
 3. Launches Streamlit on `0.0.0.0:8501` with a healthcheck on `/_stcore/health`.
 
-`docker-compose.yml` mounts `./data` as a volume, so the index and DB persist across container restarts.
+`docker-compose.yml` mounts `./data` as a volume, so the FAISS index, bookings DB, and chats DB all persist across container restarts.
 
 Plain Docker without compose:
 
 ```bash
 docker build -t vn-travel-planner .
 docker run --rm -p 8501:8501 \
-  -e AZURE_OPENAI_API_KEY="$AZURE_OPENAI_API_KEY" \
+  -e OPENAI_API_KEY="$OPENAI_API_KEY" \
   -v "$(pwd)/data:/app/data" \
   vn-travel-planner
 ```
@@ -117,13 +117,13 @@ Verifies imports + DB seed + all tests + Streamlit syntax in ~20 seconds.
 | --- | --- | --- |
 | **Streamlit Community Cloud** | Easiest. | Free tier; commit FAISS index + SQLite to the repo and configure secrets in the dashboard. |
 | **Hugging Face Spaces (Streamlit SDK)** | Easy. | Same approach as Streamlit Cloud; supports private spaces. |
-| **Azure App Service (Python)** | Production-ish. | Set Azure key + deployment names via App Service env vars. Use Azure Container Apps if you need horizontal scaling. |
+| **Render / Fly.io / Railway** | Production-ish. | Run the Docker image from this repo; set the OpenAI key as a secret env var. |
 | **Docker** | Most portable. | A 4-line Dockerfile (`python:3.12-slim` → `pip install -r requirements.txt` → `streamlit run app.py`) is enough. Mount `data/` as a volume if you want the index/DB to persist across container restarts. |
 
 A working [Dockerfile](../Dockerfile) and [docker-compose.yml](../docker-compose.yml) are shipped with the project (see Path C above). For cloud rollouts:
 
-- **Streamlit Community Cloud / HF Spaces** — point the platform at `app.py`; add `AZURE_OPENAI_API_KEY` (and optionally `TAVILY_API_KEY`) as platform secrets. Commit the FAISS index + SQLite for fastest cold-start, or build them in a post-deploy hook.
-- **Azure App Service / Container Apps** — `docker push` the image to ACR, point the service at it, set the same env vars.
+- **Streamlit Community Cloud / HF Spaces** — point the platform at `app.py`; add `OPENAI_API_KEY` (and optionally `TAVILY_API_KEY`) as platform secrets. Commit the FAISS index + SQLite for fastest cold-start, or build them in a post-deploy hook.
+- **Container hosts (Render / Fly.io / Railway / etc.)** — `docker push` the image to the registry of your choice, point the service at it, set the same env vars.
 - **Persistent volume**: the container expects `/app/data` to be writable. On Streamlit Cloud you'll need to either commit the prebuilt index or run `scripts/build_index.py` at startup (the entrypoint already handles this).
 
 ---
@@ -134,7 +134,7 @@ The hackathon deliverables include a slide deck and interface screenshots. Both 
 
 ```bash
 make slides         # → slides/presentation.pdf + .pptx (needs Node.js)
-make screenshots    # → docs/screenshots/01..05*.png (needs Azure key + Chromium)
+make screenshots    # → docs/screenshots/01..05*.png (needs OpenAI key + Chromium)
 ```
 
 If you prefer manual screenshots, the capture checklist is in [docs/screenshots/README.md](screenshots/README.md). The 5 required shots:
@@ -153,13 +153,13 @@ If you prefer manual screenshots, the capture checklist is in [docs/screenshots/
 
 **Demo flow** — work through these sample queries from the sidebar:
 
-1. **S01 — RAG (Vietnamese)**: "Mình có 3 ngày ở Hà Nội thì nên đi đâu, ăn gì?" → expand the *Tool calls* panel to show the `search_travel_knowledge` invocation and the actual snippets retrieved.
+1. **S01 — RAG (Vietnamese)**: "Mình có 3 ngày ở Hà Nội thì nên đi đâu, ăn gì?" → expand the *🔧 N tool call(s)* panel to show the `search_travel_knowledge` invocation and the actual snippets retrieved.
 2. **S03 — SQL**: "Cheapest flight Hanoi → Phu Quoc?" → expand to show the live SQLite hit with `sql` and `filters` echoed back.
 3. **S05 — Calculator**: budget question with concrete numbers → expand to show the `estimate_trip_budget` breakdown.
 4. **S06 — Multi-tool**: "Plan a 7-day Vietnam itinerary for 2 people, budget USD 1,500" → expand to show RAG + budget being chained in one turn.
 5. **S08 — Out-of-domain guardrail**: "What's the stock price of Apple today?" → assistant politely redirects.
 
-**Closing (30s)** — point to the *Architecture* slide, mention that all 27 tests pass offline (no API key), and call out the optional Tavily slot for live news.
+**Closing (30s)** — point to the *Architecture* slide, mention that all 29 tests pass offline (no API key), and call out the optional Tavily slot for live news.
 
 ---
 
@@ -167,10 +167,10 @@ If you prefer manual screenshots, the capture checklist is in [docs/screenshots/
 
 | Symptom | Likely cause | Fix |
 | --- | --- | --- |
-| `Embeddings cache missing — run scripts/build_index.py first` | Index never built or `data/faiss_index/` deleted. | Re-run `python scripts/build_index.py`. |
+| `Missing FAISS index files` | Index never built or `data/faiss_index/` deleted. | Re-run `python scripts/build_index.py`. |
 | `Bookings DB missing` | DB never seeded or `data/bookings.sqlite` deleted. | `python scripts/seed_db.py`. |
-| `AZURE_OPENAI_API_KEY missing` | `.env` empty or sidebar field blank. | Edit `.env` or paste in sidebar. |
-| `403 / 401 Unauthorised` from Azure | Key valid for one deployment but not the other. | Confirm both `gpt-4o-mini` and `text-embedding-3-small` are accessible from your key. |
-| Streamlit page blank | Streamlit cached a broken session state. | `New conversation` button in sidebar, or restart `streamlit run app.py`. |
+| `OPENAI_API_KEY missing` | `.env` empty or sidebar field blank. | Edit `.env` or paste in sidebar. |
+| `401 / 403` from OpenAI | Key invalid, or missing access to either model. | Confirm both `gpt-4o-mini` and `text-embedding-3-small` are accessible from your key. |
+| Streamlit page blank | Streamlit cached a broken session state. | Click **＋ Hội thoại mới** in the sidebar, or restart `streamlit run app.py`. |
 | `recursion_limit reached` | Agent stuck in a tool loop. | Reset conversation; consider raising `AGENT_RECURSION_LIMIT` env var if your real workflows need > 12 steps. |
 | Tests fail on a fresh checkout | Forgot to seed the DB; conftest auto-seeds but only when import succeeds. | Run `python scripts/seed_db.py` then `pytest tests/`. |

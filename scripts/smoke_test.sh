@@ -2,10 +2,10 @@
 # Smoke test for a fresh checkout. Verifies that:
 #   1. Python imports of every module succeed.
 #   2. SQLite booking DB seeds cleanly and contains expected counts.
-#   3. Pytest passes end-to-end (27+ offline tests).
+#   3. Pytest passes end-to-end (29 offline tests).
 #   4. Streamlit app at least imports without raising.
 #
-# Runs in ~20 seconds. Does NOT need an Azure key.
+# Runs in ~20 seconds. Does NOT need an OpenAI key.
 #
 # Usage:   bash scripts/smoke_test.sh
 
@@ -32,6 +32,7 @@ for m in [
     "travel_advisor.retriever",
     "travel_advisor.tools",
     "travel_advisor.agent",
+    "travel_advisor.chat_store",
 ]:
     importlib.import_module(m)
 print("  ok — all modules import")

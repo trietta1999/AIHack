@@ -5,7 +5,7 @@ These tests verify that:
 - the tool's real observation is captured in the trace,
 - the final AIMessage text is surfaced as `TurnResult.answer`.
 
-No Azure key is needed.
+No OpenAI key is needed.
 """
 
 from __future__ import annotations

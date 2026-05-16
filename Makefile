@@ -3,7 +3,7 @@
 # Common usage:
 #   make install     create .venv + install requirements
 #   make seed        seed SQLite bookings DB
-#   make index       build FAISS index from KB (needs Azure key)
+#   make index       build FAISS index from KB (needs OPENAI_API_KEY)
 #   make test        run the pytest suite (offline, no key)
 #   make demo        seed + index + launch Streamlit
 #   make docker      build and run the Docker image
